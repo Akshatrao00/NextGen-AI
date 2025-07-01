@@ -1,0 +1,61 @@
+1. Project Name
+md
+Copy
+Edit
+# NextGen AI Assistant
+2. Short Description
+md
+Copy
+Edit
+An intelligent multimodal AI assistant that understands Text, Voice, Images, and Gestures. Built for next-gen interaction.
+3. Key Features
+md
+Copy
+Edit
+## 🔑 Features
+- 💬 Text-based chat with GPT-4
+- 🎤 Voice recognition using Whisper
+- 📸 Image understanding
+- ✋ Gesture control (upcoming)
+- 🧠 Smart, fast, and secure
+4. Tech Stack
+md
+Copy
+Edit
+## ⚙️ Tech Stack
+- Python + Flask (Backend)
+- ReactJS + Tailwind (Frontend)
+- OpenAI GPT, Whisper
+- OpenCV, SpeechRecognition
+5. How to Run
+md
+Copy
+Edit
+## 🚀 How to Run
+
+### Backend:
+```bash
+pip install -r requirements.txt
+python nextgen.py
+Frontend (if React used):
+bash
+Copy
+Edit
+cd client
+npm install
+npm start
+shell
+Copy
+Edit
+
+### 6. **Screenshots or Demo**
+```md
+## 📸 Demo
+*(Add GIF, image or YouTube link here)*
+7. Author
+md
+Copy
+Edit
+## 👤 Author
+**Akshat Raj**  
+[GitHub](https://github.com/Akshatrao00) | [LinkedIn](https://linkedin.com/in/akshat-raj-73ba41233)
