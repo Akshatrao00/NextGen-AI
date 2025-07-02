@@ -16,3 +16,22 @@ python nextgen.py
 cd client
 npm install
 npm start
+# 🤖 NextGen AI Assistant
+
+NextGen AI is a smart AI assistant that handles text, voice, and image queries using Python and Flask. It features intelligent auto-reply and can be integrated with OpenAI, Speech Recognition, and more.
+
+## 🚀 Features
+
+- Chatbot with NLP (text)
+- Voice-to-text using SpeechRecognition
+- Image interpretation (coming soon)
+- Auto-reply like ZyvixAI
+- Deployable on Render (free)
+
+## 🔧 How to Run Locally
+
+```bash
+git clone https://github.com/Akshatrao00/nextgen-ai.git
+cd nextgen-ai
+pip install -r requirements.txt
+python app.py
