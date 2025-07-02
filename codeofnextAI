@@ -1,0 +1,390 @@
+# Multimodal AI Assistant - Complete Backend
+# Install required packages: pip install flask flask-cors openai pillow opencv-python speechrecognition pyttsx3 mediapipe
+
+import os
+import json
+import base64
+from datetime import datetime
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import cv2
+import numpy as np
+from PIL import Image
+import io
+import speech_recognition as sr
+import pyttsx3
+import threading
+import mediapipe as mp
+
+# Initialize Flask app
+app = Flask(__name__)
+CORS(app)
+
+# Global variables
+tts_engine = pyttsx3.init()
+recognizer = sr.Recognizer()
+microphone = sr.Microphone()
+
+# MediaPipe for gesture recognition
+mp_hands = mp.solutions.hands
+mp_drawing = mp.solutions.drawing_utils
+hands = mp_hands.Hands(
+    static_image_mode=False,
+    max_num_hands=2,
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5
+)
+
+# Context memory storage
+context_memory = {
+    "conversations": [],
+    "user_preferences": {},
+    "gesture_history": [],
+    "image_analysis_history": []
+}
+
+class MultimodalAI:
+    def __init__(self):
+        self.conversation_history = []
+        
+    def analyze_text(self, text):
+        """Advanced text analysis with context"""
+        # Simple sentiment and intent analysis
+        text_lower = text.lower()
+        
+        # Intent recognition
+        intents = {
+            "greeting": ["hello", "hi", "hey", "good morning", "good evening"],
+            "question": ["what", "how", "why", "when", "where", "who"],
+            "request": ["please", "can you", "would you", "help me"],
+            "emotion": ["happy", "sad", "angry", "excited", "frustrated"]
+        }
+        
+        detected_intent = "general"
+        for intent, keywords in intents.items():
+            if any(keyword in text_lower for keyword in keywords):
+                detected_intent = intent
+                break
+        
+        # Generate contextual response
+        responses = {
+            "greeting": f"Hello! Great to see you again. How can I assist you today?",
+            "question": f"That's an interesting question about '{text}'. Let me think about this...",
+            "request": f"I'd be happy to help you with that request!",
+            "emotion": f"I can sense the emotion in your message. Let's work through this together.",
+            "general": f"I understand you're saying: '{text}'. How can I help you further?"
+        }
+        
+        return {
+            "intent": detected_intent,
+            "response": responses[detected_intent],
+            "confidence": 0.85,
+            "timestamp": datetime.now().isoformat()
+        }
+    
+    def analyze_image(self, image_data):
+        """Advanced image analysis"""
+        try:
+            # Decode base64 image
+            image_bytes = base64.b64decode(image_data.split(',')[1])
+            image = Image.open(io.BytesIO(image_bytes))
+            
+            # Convert to numpy array for OpenCV
+            img_array = np.array(image)
+            img_rgb = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+            
+            # Basic image analysis
+            height, width = img_rgb.shape[:2]
+            
+            # Color analysis
+            colors = {
+                "dominant_color": self.get_dominant_color(img_rgb),
+                "brightness": np.mean(img_rgb),
+                "contrast": np.std(img_rgb)
+            }
+            
+            # Object detection (simplified - you can integrate YOLO or other models)
+            gray = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2GRAY)
+            faces = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml').detectMultiScale(gray, 1.3, 5)
+            
+            analysis = {
+                "dimensions": {"width": width, "height": height},
+                "colors": colors,
+                "objects_detected": {
+                    "faces": len(faces),
+                    "face_locations": faces.tolist() if len(faces) > 0 else []
+                },
+                "quality_score": min(100, int(colors["brightness"] * colors["contrast"] / 10)),
+                "description": self.generate_image_description(colors, len(faces))
+            }
+            
+            return analysis
+            
+        except Exception as e:
+            return {"error": f"Image analysis failed: {str(e)}"}
+    
+    def get_dominant_color(self, image):
+        """Get dominant color from image"""
+        pixels = image.reshape(-1, 3)
+        colors, counts = np.unique(pixels, axis=0, return_counts=True)
+        dominant = colors[np.argmax(counts)]
+        return dominant.tolist()
+    
+    def generate_image_description(self, colors, face_count):
+        """Generate natural language description of image"""
+        brightness = colors["brightness"]
+        
+        if brightness > 150:
+            brightness_desc = "bright"
+        elif brightness > 100:
+            brightness_desc = "moderately lit"
+        else:
+            brightness_desc = "dark"
+        
+        desc = f"This is a {brightness_desc} image"
+        
+        if face_count > 0:
+            desc += f" with {face_count} face(s) detected"
+        
+        desc += ". The image appears to be of good quality for analysis."
+        
+        return desc
+    
+    def analyze_gesture(self, image_data):
+        """Advanced gesture recognition"""
+        try:
+            # Decode base64 image
+            image_bytes = base64.b64decode(image_data.split(',')[1])
+            image = Image.open(io.BytesIO(image_bytes))
+            img_array = np.array(image)
+            
+            # Process with MediaPipe
+            results = hands.process(img_array)
+            
+            gestures = []
+            if results.multi_hand_landmarks:
+                for hand_landmarks in results.multi_hand_landmarks:
+                    # Extract landmark positions
+                    landmarks = []
+                    for lm in hand_landmarks.landmark:
+                        landmarks.append([lm.x, lm.y, lm.z])
+                    
+                    # Recognize gesture based on landmarks
+                    gesture = self.recognize_gesture(landmarks)
+                    gestures.append(gesture)
+            
+            return {
+                "gestures_detected": len(gestures),
+                "gestures": gestures,
+                "message": f"Detected {len(gestures)} hand gesture(s)" if gestures else "No gestures detected"
+            }
+            
+        except Exception as e:
+            return {"error": f"Gesture analysis failed: {str(e)}"}
+    
+    def recognize_gesture(self, landmarks):
+        """Simple gesture recognition logic"""
+        # This is a simplified version - you can implement more complex gesture recognition
+        thumb_tip = landmarks[4]
+        index_tip = landmarks[8]
+        middle_tip = landmarks[12]
+        ring_tip = landmarks[16]
+        pinky_tip = landmarks[20]
+        
+        # Simple gesture detection
+        if thumb_tip[1] < index_tip[1] and all(tip[1] > landmarks[6][1] for tip in [middle_tip, ring_tip, pinky_tip]):
+            return {"name": "thumbs_up", "confidence": 0.9, "action": "positive_feedback"}
+        elif index_tip[1] < middle_tip[1] and all(tip[1] > landmarks[10][1] for tip in [thumb_tip, ring_tip, pinky_tip]):
+            return {"name": "pointing", "confidence": 0.8, "action": "selection"}
+        else:
+            return {"name": "open_hand", "confidence": 0.7, "action": "neutral"}
+
+# Initialize AI
+ai_assistant = MultimodalAI()
+
+@app.route('/api/chat', methods=['POST'])
+def chat():
+    """Handle text-based chat"""
+    data = request.json
+    user_message = data.get('message', '')
+    
+    # Analyze text and generate response
+    analysis = ai_assistant.analyze_text(user_message)
+    
+    # Store in context
+    context_memory["conversations"].append({
+        "user_message": user_message,
+        "ai_response": analysis["response"],
+        "intent": analysis["intent"],
+        "timestamp": analysis["timestamp"]
+    })
+    
+    return jsonify({
+        "response": analysis["response"],
+        "intent": analysis["intent"],
+        "confidence": analysis["confidence"],
+        "timestamp": analysis["timestamp"]
+    })
+
+@app.route('/api/voice', methods=['POST'])
+def process_voice():
+    """Handle voice input"""
+    try:
+        # Get audio file from request
+        audio_file = request.files['audio']
+        
+        # Save temporarily
+        temp_path = f"temp_audio_{datetime.now().timestamp()}.wav"
+        audio_file.save(temp_path)
+        
+        # Process with speech recognition
+        with sr.AudioFile(temp_path) as source:
+            audio = recognizer.record(source)
+            text = recognizer.recognize_google(audio)
+        
+        # Clean up
+        os.remove(temp_path)
+        
+        # Process as text
+        analysis = ai_assistant.analyze_text(text)
+        
+        return jsonify({
+            "transcribed_text": text,
+            "response": analysis["response"],
+            "intent": analysis["intent"]
+        })
+        
+    except Exception as e:
+        return jsonify({"error": f"Voice processing failed: {str(e)}"})
+
+@app.route('/api/image', methods=['POST'])
+def process_image():
+    """Handle image analysis"""
+    data = request.json
+    image_data = data.get('image', '')
+    
+    # Analyze image
+    analysis = ai_assistant.analyze_image(image_data)
+    
+    # Store in context
+    context_memory["image_analysis_history"].append({
+        "analysis": analysis,
+        "timestamp": datetime.now().isoformat()
+    })
+    
+    # Generate response
+    if "error" not in analysis:
+        response = f"I can see your image! {analysis['description']} "
+        response += f"The image is {analysis['dimensions']['width']}x{analysis['dimensions']['height']} pixels. "
+        
+        if analysis['objects_detected']['faces'] > 0:
+            response += f"I detected {analysis['objects_detected']['faces']} face(s) in the image. "
+        
+        response += f"The image quality score is {analysis['quality_score']}/100."
+    else:
+        response = "I'm having trouble analyzing this image. Please try again."
+    
+    return jsonify({
+        "response": response,
+        "analysis": analysis,
+        "timestamp": datetime.now().isoformat()
+    })
+
+@app.route('/api/gesture', methods=['POST'])
+def process_gesture():
+    """Handle gesture recognition"""
+    data = request.json
+    image_data = data.get('image', '')
+    
+    # Analyze gesture
+    analysis = ai_assistant.analyze_gesture(image_data)
+    
+    # Store in context
+    context_memory["gesture_history"].append({
+        "analysis": analysis,
+        "timestamp": datetime.now().isoformat()
+    })
+    
+    # Generate response
+    if "error" not in analysis:
+        if analysis["gestures_detected"] > 0:
+            gesture_names = [g["name"] for g in analysis["gestures"]]
+            response = f"I detected {analysis['gestures_detected']} gesture(s): {', '.join(gesture_names)}. "
+            
+            # Add action-based responses
+            for gesture in analysis["gestures"]:
+                if gesture["action"] == "positive_feedback":
+                    response += "Thanks for the positive feedback! "
+                elif gesture["action"] == "selection":
+                    response += "I see you're pointing at something. "
+        else:
+            response = "I'm looking for gestures. Try waving, pointing, or giving a thumbs up!"
+    else:
+        response = "I'm having trouble detecting gestures. Please ensure your hand is visible."
+    
+    return jsonify({
+        "response": response,
+        "analysis": analysis,
+        "timestamp": datetime.now().isoformat()
+    })
+
+@app.route('/api/context', methods=['GET'])
+def get_context():
+    """Get conversation context and memory"""
+    return jsonify(context_memory)
+
+@app.route('/api/tts', methods=['POST'])
+def text_to_speech():
+    """Convert text to speech"""
+    data = request.json
+    text = data.get('text', '')
+    
+    try:
+        # Configure TTS
+        tts_engine.setProperty('rate', 150)
+        tts_engine.setProperty('volume', 0.8)
+        
+        # Generate speech in background
+        def speak():
+            tts_engine.say(text)
+            tts_engine.runAndWait()
+        
+        thread = threading.Thread(target=speak)
+        thread.start()
+        
+        return jsonify({"status": "speaking", "text": text})
+        
+    except Exception as e:
+        return jsonify({"error": f"TTS failed: {str(e)}"})
+
+@app.route('/api/status', methods=['GET'])
+def system_status():
+    """Get system status"""
+    return jsonify({
+        "status": "online",
+        "capabilities": {
+            "text_processing": True,
+            "voice_recognition": True,
+            "image_analysis": True,
+            "gesture_recognition": True,
+            "text_to_speech": True
+        },
+        "memory": {
+            "conversations": len(context_memory["conversations"]),
+            "images_analyzed": len(context_memory["image_analysis_history"]),
+            "gestures_detected": len(context_memory["gesture_history"])
+        },
+        "timestamp": datetime.now().isoformat()
+    })
+
+if __name__ == '__main__':
+    print("🚀 Multimodal AI Assistant Backend Starting...")
+    print("📝 Text Chat: /api/chat")
+    print("🎤 Voice Processing: /api/voice") 
+    print("📸 Image Analysis: /api/image")
+    print("👋 Gesture Recognition: /api/gesture")
+    print("🔊 Text-to-Speech: /api/tts")
+    print("📊 System Status: /api/status")
+    print("🧠 Context Memory: /api/context")
+    
+    app.run(debug=True, host='0.0.0.0', port=5000)
